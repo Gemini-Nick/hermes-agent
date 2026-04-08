@@ -26,6 +26,7 @@ The architectural north star is not a permanent local multi-service stack. It is
 
 Key docs for this fork:
 
+- [Longclaw Plan](docs/longclaw/PLAN.md)
 - [Longclaw Architecture](docs/longclaw/ARCHITECTURE.md)
 - [Longclaw Repo Map](docs/longclaw/REPO_MAP.md)
 - [Longclaw Product Roadmap](docs/longclaw/ROADMAP.md)
