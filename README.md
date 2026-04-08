@@ -2,7 +2,7 @@
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
 
-# Hermes Agent ☤
+# Hermes Agent (Harness Engineering) ☤
 
 <p align="center">
   <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
@@ -11,7 +11,42 @@
   <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
 </p>
 
-**The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
+This fork is the umbrella repository for the Longclaw product direction. It keeps upstream [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) as the runtime base, while defining a product path toward a Hermes-like unified agent core and a self-improving harness engineering loop.
+
+## Longclaw Fork Positioning
+
+Longclaw uses this repository as the product-level entrypoint:
+
+- `hermes-agent` is the umbrella repo and future `Agent Core（云侧）` base.
+- [`longclaw-agent-os`](https://github.com/Gemini-Nick/longclaw-agent-os) is the current `Client Runtime（端侧）` reference implementation.
+- `weclaw` and `Chanless` stay in `Interaction Adapter Layer（通道侧）`.
+- Obsidian and related review surfaces stay in `Knowledge Review Plane（知识侧）`.
+
+The architectural north star is not a permanent local multi-service stack. It is a Hermes-like unified runtime with built-in `session / memory / skills / scheduler / learning loop`, plus a harness engineering loop that continuously evaluates, promotes, and improves behavior from real usage.
+
+Key docs for this fork:
+
+- [Longclaw Architecture](docs/longclaw/ARCHITECTURE.md)
+- [Longclaw Repo Map](docs/longclaw/REPO_MAP.md)
+- [Longclaw Product Roadmap](docs/longclaw/ROADMAP.md)
+
+## Longclaw Product Path
+
+1. Stabilize the local-first reference implementation around `longclaw-agent-os`.
+2. Use this fork to define the canonical product architecture and repo boundaries.
+3. Converge toward a Hermes-like `Agent Core（云侧）` with a self-improving harness engineering loop.
+4. Keep `Client Runtime（端侧）` and `Interaction Adapter Layer（通道侧）` thin enough to support future Mac, mobile, glasses, and cloud deployments.
+
+## Canonical Terms
+
+- `Client Runtime（端侧）`: the device-side runtime, product shell, local automation host, and recovery substrate.
+- `Agent Core（云侧）`: the portable agent runtime responsible for `session / memory / skills / scheduler / learning loop`.
+- `Interaction Adapter Layer（通道侧）`: channel and protocol adapters such as WeChat, voice, Telegram, and Lark.
+- `Knowledge Review Plane（知识侧）`: human-readable knowledge, review, intervention, and audit surfaces.
+
+---
+
+**Upstream Hermes Agent** is the self-improving AI agent built by [Nous Research](https://nousresearch.com). It creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
 Use any model you want — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in.
 
