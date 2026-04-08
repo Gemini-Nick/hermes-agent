@@ -10,6 +10,24 @@ It is intentionally more draft-like than the core docs:
 
 Use this file for evolving architecture decisions before they are normalized into the core docs.
 
+## Concept Model
+
+- `Hermes-like Agent Core（云侧）`
+  - 目标运行时形态
+  - 统一承载 `session / memory / skills / scheduler / user model`
+- `Self-improving agent`
+  - 产品能力目标
+  - 用户感知到的是 agent 会跨会话学习、回忆、改进和贴近个人偏好
+- `Harness Engineering Loop`
+  - 内部实现机制
+  - 负责 ingest、evaluate、regress、promote，并把高风险或冲突内容送到审阅面
+
+三者关系固定为：
+
+- `Hermes-like Agent Core（云侧）` 是架构目标
+- `Harness Engineering Loop` 是核心内部闭环
+- `Self-improving agent` 是最后呈现出来的产品能力
+
 ## Summary
 
 - 统一术语：
@@ -52,7 +70,7 @@ flowchart TB
     MM["memory"]
     SK["skills"]
     SC["scheduler"]
-    LL["learning loop"]
+    LL["Harness Engineering Loop"]
   end
 
   IA --> CR
@@ -103,7 +121,7 @@ flowchart TB
     MM["memory"]
     SK["skills"]
     SC["scheduler / automations"]
-    LL["learning loop / user model"]
+    LL["Harness Engineering Loop / user model"]
     DV["delivery"]
   end
 
@@ -169,7 +187,7 @@ flowchart TB
   - 当前建议归类：先留在 `Client Runtime（端侧）`；未来拆成 `Agent Core（云侧）` 的 evaluation/feedback 子系统
 - `learning runtime`
   - 不建议再作为独立顶层名保留
-  - 未来直接归入 `Agent Core（云侧）` 的 `memory + skills + learning loop`
+  - 未来直接归入 `Agent Core（云侧）` 的 `user model + skills + Harness Engineering Loop`
 
 ## Recommended Direction
 

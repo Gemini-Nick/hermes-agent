@@ -11,7 +11,7 @@
   <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
 </p>
 
-This fork is the umbrella repository for the Longclaw product direction. It keeps upstream [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) as the runtime base, while defining a product path toward a Hermes-like unified agent core and a self-improving harness engineering loop.
+This fork is the umbrella repository for the Longclaw product direction. It keeps upstream [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) as the runtime base, while defining a product path toward a Hermes-like unified agent core with a built-in `Harness Engineering Loop`.
 
 ## Longclaw Fork Positioning
 
@@ -22,7 +22,7 @@ Longclaw uses this repository as the product-level entrypoint:
 - `weclaw` and `Chanless` stay in `Interaction Adapter Layer（通道侧）`.
 - Obsidian and related review surfaces stay in `Knowledge Review Plane（知识侧）`.
 
-The architectural north star is not a permanent local multi-service stack. It is a Hermes-like unified runtime with built-in `session / memory / skills / scheduler / learning loop`, plus a harness engineering loop that continuously evaluates, promotes, and improves behavior from real usage.
+The architectural north star is not a permanent local multi-service stack. It is a Hermes-like unified runtime with built-in `session / memory / skills / scheduler / user model`, plus a `Harness Engineering Loop` that continuously evaluates, promotes, and improves behavior from real usage.
 
 Key docs for this fork:
 
@@ -31,17 +31,37 @@ Key docs for this fork:
 - [Longclaw Repo Map](docs/longclaw/REPO_MAP.md)
 - [Longclaw Product Roadmap](docs/longclaw/ROADMAP.md)
 
+## Concept Model
+
+Use these three phrases with distinct meanings:
+
+- `Hermes-like Agent Core（云侧）`
+  - The target runtime shape.
+  - One portable core for `session / memory / skills / scheduler / user model`.
+- `Self-improving agent`
+  - The product capability target.
+  - The agent gets better over time from real usage, recalls prior context, and refines skills and user understanding across sessions.
+- `Harness Engineering Loop`
+  - The internal improvement mechanism.
+  - It ingests traces and outcomes, evaluates them, runs regressions, promotes validated artifacts, and feeds reviewed changes back into the core.
+
+In short:
+
+- `Hermes-like Agent Core（云侧）` is the architecture target.
+- `Self-improving agent` is the product outcome.
+- `Harness Engineering Loop` is the mechanism that makes the outcome credible.
+
 ## Longclaw Product Path
 
 1. Stabilize the local-first reference implementation around `longclaw-agent-os`.
 2. Use this fork to define the canonical product architecture and repo boundaries.
-3. Converge toward a Hermes-like `Agent Core（云侧）` with a self-improving harness engineering loop.
+3. Converge toward a Hermes-like `Agent Core（云侧）` with a built-in `Harness Engineering Loop`.
 4. Keep `Client Runtime（端侧）` and `Interaction Adapter Layer（通道侧）` thin enough to support future Mac, mobile, glasses, and cloud deployments.
 
 ## Canonical Terms
 
 - `Client Runtime（端侧）`: the device-side runtime, product shell, local automation host, and recovery substrate.
-- `Agent Core（云侧）`: the portable agent runtime responsible for `session / memory / skills / scheduler / learning loop`.
+- `Agent Core（云侧）`: the portable agent runtime responsible for `session / memory / skills / scheduler / user model`.
 - `Interaction Adapter Layer（通道侧）`: channel and protocol adapters such as WeChat, voice, Telegram, and Lark.
 - `Knowledge Review Plane（知识侧）`: human-readable knowledge, review, intervention, and audit surfaces.
 

@@ -7,7 +7,27 @@ The direction is deliberate:
 - use the current local stack to validate product workflows and device-side integration
 - keep upstream Hermes Agent as the runtime base
 - converge toward a Hermes-like unified `Agent Core（云侧）`
-- fold `harness` into a self-improving harness engineering loop instead of keeping it as a permanently separate top-level runtime
+- fold `harness` into a built-in `Harness Engineering Loop` instead of keeping it as a permanently separate top-level runtime
+
+## Relationship Of Terms
+
+These concepts are related, but they are not interchangeable:
+
+- `Hermes-like Agent Core（云侧）`
+  - The target runtime shape.
+  - A unified portable runtime for `session / memory / skills / scheduler / user model`.
+- `Self-improving agent`
+  - The product capability target.
+  - The agent improves from real usage, remembers relevant prior context, and gets better at acting on behalf of the user over time.
+- `Harness Engineering Loop`
+  - The internal mechanism that makes self-improvement safe and repeatable.
+  - It ingests traces, evaluates behavior, runs regressions, promotes validated artifacts, and routes unresolved ambiguity to review surfaces.
+
+The intended relationship is:
+
+- `Agent Core（云侧）` is the runtime substrate.
+- `Harness Engineering Loop` is the improvement loop inside that substrate.
+- `Self-improving agent` is the resulting product behavior.
 
 ## Canonical Terms
 
@@ -16,7 +36,7 @@ The direction is deliberate:
   - Examples: macOS desktop app, local CLI, local launchd services, future mobile and glasses clients.
 - `Agent Core（云侧）`
   - The portable agent runtime.
-  - Responsible for `session / memory / skills / scheduler / learning loop`.
+  - Responsible for `session / memory / skills / scheduler / user model`.
   - Usually cloud-hosted, but allowed to run locally in lightweight mode when needed.
 - `Interaction Adapter Layer（通道侧）`
   - Message, voice, and protocol adapters.
@@ -54,7 +74,7 @@ flowchart TB
     MM["memory"]
     SK["skills"]
     SC["scheduler"]
-    HL["harness engineering loop"]
+    HL["Harness Engineering Loop"]
   end
 
   IA --> CR
@@ -105,7 +125,7 @@ flowchart TB
     MM["memory"]
     SK["skills"]
     SC["scheduler / automations"]
-    HL["harness engineering loop"]
+    HL["Harness Engineering Loop / user model"]
     DV["delivery"]
   end
 
@@ -126,7 +146,7 @@ Why this is closer to upstream Hermes Agent:
 
 - CLI, gateway, scheduling, memory, and session search can live in one runtime.
 - hosting and long-running process control are more naturally delegated to cloud infrastructure
-- the learning loop becomes a built-in runtime property, not an attached subsystem
+- the improvement loop becomes a built-in runtime property, not an attached subsystem
 
 Benefits:
 

@@ -2,6 +2,14 @@
 
 This fork is the product-level umbrella repository. The repositories below are classified against the canonical Longclaw architecture.
 
+## Concept Boundaries
+
+- `Hermes-like Agent Core（云侧）` is the target runtime shape.
+- `Self-improving agent` is the user-facing product capability.
+- `Harness Engineering Loop` is the internal evaluation and promotion loop inside the core.
+
+That means `self-improving agent` is not a separate repository or layer. It is the behavior produced when the core and the improvement loop are working together.
+
 ## Primary Mapping
 
 | Repository or artifact | Current classification | Role |
@@ -20,7 +28,7 @@ This fork is the product-level umbrella repository. The repositories below are c
 | `guardian` | `Client Runtime（端侧）` substrate | Remains a device-side supervision layer instead of a portable core concern |
 | `watchdog` | Transitional, currently closer to `Client Runtime（端侧）` | Portable scheduling and orchestration logic should move into `Agent Core（云侧）` |
 | `harness` | Transitional, currently split across local workflows | Becomes the evaluation, regression, and promotion loop inside `Agent Core（云侧）` |
-| `learning runtime` | Do not keep as a top-level product name | Fold into `memory + skills + harness engineering loop` inside `Agent Core（云侧）` |
+| `learning runtime` | Do not keep as a top-level product name | Fold into `user model + skills + Harness Engineering Loop` inside `Agent Core（云侧）` |
 
 ## Guiding Rules
 

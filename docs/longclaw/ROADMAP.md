@@ -1,6 +1,12 @@
 # Longclaw Product Roadmap
 
-This roadmap describes how Longclaw moves from a local-first personal stack into a distributable product built around a Hermes-like core and a self-improving harness engineering loop.
+This roadmap describes how Longclaw moves from a local-first personal stack into a distributable product built around a Hermes-like core, with a built-in `Harness Engineering Loop` that enables a real self-improving agent.
+
+## Concept Goal
+
+- `Hermes-like Agent Core（云侧）` is the target runtime architecture.
+- `Harness Engineering Loop` is the mechanism that improves behavior and promotes validated changes.
+- `Self-improving agent` is the product outcome that users should feel.
 
 ## Phase 0
 
@@ -41,6 +47,7 @@ Primary shape:
 - portable pieces of `watchdog` and `harness` move toward the core runtime
 - learning is no longer described as a separate runtime
 - `session / memory / skills / scheduler` become first-class extraction targets
+- `user model` and `Harness Engineering Loop` become explicit core concerns
 
 Goal:
 
@@ -77,7 +84,7 @@ Goal:
 
 Longclaw should end up closer to a Hermes-style runtime than to a permanent local service mesh:
 
-- one core for sessions, memory, skills, scheduling, and learning
+- one core for sessions, memory, skills, scheduling, user model, and the `Harness Engineering Loop`
 - thin clients and adapters
 - explicit review and intervention surfaces
 - a built-in harness engineering loop that keeps improving the agent from real usage
