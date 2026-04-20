@@ -13,6 +13,8 @@
 
 This fork is the umbrella repository for the Longclaw product direction. It keeps upstream [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) as the runtime base, while defining a product path toward a Hermes-like unified agent core with a built-in `Harness Engineering Loop`.
 
+Longclaw is being reframed as a `Self-improving personal agent system`, not as a product whose current WeChat adapter can always push background notifications at any time. The current WeChat reality is `windowed proactive messaging`: reliable ingress, reliable in-context reply, and conditional proactive delivery only when a fresh live context window exists.
+
 ## Longclaw Fork Positioning
 
 Longclaw uses this repository as the product-level entrypoint:
@@ -23,6 +25,20 @@ Longclaw uses this repository as the product-level entrypoint:
 - Obsidian and related review surfaces stay in `Knowledge Review Plane（知识侧）`.
 
 The architectural north star is not a permanent local multi-service stack. It is a Hermes-like unified runtime with built-in `session / memory / skills / scheduler / user model`, plus a `Harness Engineering Loop` that continuously evaluates, promotes, and improves behavior from real usage.
+
+The current near-term product promise is:
+
+- cross-session memory
+- dual-agent failover
+- reviewable knowledge projection
+- queued tasks and automation
+- a `Harness Engineering Loop` that improves the system from real usage
+
+The current near-term product constraint is:
+
+- `weclaw / WeChat` is a `windowed proactive adapter`, not a guaranteed background push channel
+- reliable delivery today lives in `Client Runtime（端侧）`: runtime state, dashboard, local notifications, and review surfaces
+- WeChat remains the primary ingress and pull surface through live reply, `任务:`, and `/runtime`
 
 Key docs for this fork:
 
@@ -53,16 +69,18 @@ In short:
 
 ## Longclaw Product Path
 
-1. Stabilize the local-first reference implementation around `longclaw-agent-os`.
-2. Use this fork to define the canonical product architecture and repo boundaries.
-3. Converge toward a Hermes-like `Agent Core（云侧）` with a built-in `Harness Engineering Loop`.
-4. Keep `Client Runtime（端侧）` and `Interaction Adapter Layer（通道侧）` thin enough to support future Mac, mobile, glasses, and cloud deployments.
+1. `Local Reliable Loop`
+   Make `WeChat -> weclaw -> Mac runtime -> dual-agent -> runtime state -> knowledge` reliable even when proactive WeChat delivery is unavailable.
+2. `Portable Core Extraction`
+   Extract `session / routing / task queue / memory / delivery policy / Harness Engineering Loop` into portable contracts.
+3. `Distributed Product Runtime`
+   Converge toward a Hermes-like `Agent Core（云侧）` while keeping `Client Runtime（端侧）` and `Interaction Adapter Layer（通道侧）` thin enough for Mac, mobile, glasses, and cloud deployments.
 
 ## Canonical Terms
 
 - `Client Runtime（端侧）`: the device-side runtime, product shell, local automation host, and recovery substrate.
 - `Agent Core（云侧）`: the portable agent runtime responsible for `session / memory / skills / scheduler / user model`.
-- `Interaction Adapter Layer（通道侧）`: channel and protocol adapters such as WeChat, voice, Telegram, and Lark.
+- `Interaction Adapter Layer（通道侧）`: channel and protocol adapters such as WeChat, voice, Telegram, and Lark. Adapters do not automatically imply reliable push delivery.
 - `Knowledge Review Plane（知识侧）`: human-readable knowledge, review, intervention, and audit surfaces.
 
 ---

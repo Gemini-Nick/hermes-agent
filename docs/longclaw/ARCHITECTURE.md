@@ -2,181 +2,271 @@
 
 This fork treats `hermes-agent` as the umbrella repository for the Longclaw product line.
 
-The direction is deliberate:
+Longclaw is not a pure governance console and not a chat-first cowork shell.
+It is an Agent OS for a single high-leverage operator.
 
-- use the current local stack to validate product workflows and device-side integration
-- keep upstream Hermes Agent as the runtime base
-- converge toward a Hermes-like unified `Agent Core（云侧）`
-- fold `harness` into a built-in `Harness Engineering Loop` instead of keeping it as a permanently separate top-level runtime
+The product rule is:
 
-## Relationship Of Terms
+- `Chat launches, console governs.`
 
-These concepts are related, but they are not interchangeable:
+## Product Positioning
 
-- `Hermes-like Agent Core（云侧）`
-  - The target runtime shape.
-  - A unified portable runtime for `session / memory / skills / scheduler / user model`.
-- `Self-improving agent`
-  - The product capability target.
-  - The agent improves from real usage, remembers relevant prior context, and gets better at acting on behalf of the user over time.
-- `Harness Engineering Loop`
-  - The internal mechanism that makes self-improvement safe and repeatable.
-  - It ingests traces, evaluates behavior, runs regressions, promotes validated artifacts, and routes unresolved ambiguity to review surfaces.
+Longclaw is built from two layers that must stay distinct but connected:
 
-The intended relationship is:
+- `Cowork Front Door`
+  - Launch work with natural language and `@plugin / @skill / @pack`.
+  - Exists in `Electron Home` and `WeClaw`.
+- `Governance Console`
+  - Owns `runs / artifacts / evidence / review / work items / delivery / promotion`.
+  - Lives primarily in `Electron`.
 
-- `Agent Core（云侧）` is the runtime substrate.
-- `Harness Engineering Loop` is the improvement loop inside that substrate.
-- `Self-improving agent` is the resulting product behavior.
+This keeps launch fluid while preserving explicit supervision, evidence, and review.
 
 ## Canonical Terms
 
 - `Client Runtime（端侧）`
   - The user-device-side runtime and host environment.
-  - Examples: macOS desktop app, local CLI, local launchd services, future mobile and glasses clients.
+  - In phase 1, this is also the default product home through `longclaw-agent-os`.
 - `Agent Core（云侧）`
-  - The portable agent runtime.
-  - Responsible for `session / memory / skills / scheduler / user model`.
-  - Usually cloud-hosted, but allowed to run locally in lightweight mode when needed.
+  - The portable runtime owned by `hermes-agent`.
+  - Responsible for `session / memory / skills / scheduler / delivery / approvals / eval`.
 - `Interaction Adapter Layer（通道侧）`
-  - Message, voice, and protocol adapters.
-  - Examples: WeChat, Telegram, Lark, Line, voice, multimodal adapters.
-- `Knowledge Review Plane（知识侧）`
-  - Human-readable knowledge projection, review, intervention, and audit.
-  - Examples: Obsidian, Notion, dashboards, intervention queues, evidence trails.
+  - Channel adapters such as WeChat, voice, and future remote surfaces.
+  - Adapters launch and relay; they do not own governance state.
+- `Capability Substrate`
+  - The curated capability layer exposed by the product shell.
+  - Includes `skills / plugins / bundled skills / built-in plugins / cowork runtime`.
+- `Professional Grounds`
+  - Flagship specialist packs that build real depth through execution, evidence, review, and iteration.
+  - In phase 1: `Signals` and `due-diligence-core`.
+- `Reviewed Knowledge Plane`
+  - Human-readable reviewed knowledge only.
+  - In phase 1: `Obsidian`.
+- `LaunchIntent`
+  - The canonical front-door input compiled by Hermes into `Task / Run / Work Item`.
+  - If the front door omits an explicit `@pack`, Hermes may still route canonically through
+    a configured default launch pack/capability policy instead of forcing a local-only fallback.
 
-## Architecture A
+## Current Product Promise
 
-### `Local-first Reference Architecture（当前本地参考实现）`
+Longclaw's current promise is:
+
+- cross-session memory
+- typed launch through `@plugin / @skill / @pack`
+- specialist pack orchestration
+- reviewable evidence and work items
+- reviewed knowledge promotion
+- a `Harness Engineering Loop` that improves behavior from real usage
+
+The key transport constraint remains:
+
+- `weclaw / WeChat` is a `windowed proactive adapter`
+- reliable today: ingress, live-session reply, `任务:`, `/runtime`
+- conditional today: proactive summaries inside a fresh context window
+- not promised today: long-idle background push after the live window expires
+
+## Design Ownership
+
+Longclaw has one product-level design source of truth:
+
+- [`DESIGN.md`](DESIGN.md)
+
+That file defines the visual language, typography, color semantics, density,
+surface hierarchy, and companion-surface rules for the product line.
+
+Implementation rule:
+
+- `longclaw-agent-os` is the primary surface implementation repo.
+- `Signals`, `WeClaw`, and `Obsidian` may express local variants, but they may
+  not branch into separate product identities.
+- If a UI or companion-surface decision conflicts with `DESIGN.md`, `DESIGN.md`
+  wins unless the user explicitly changes it.
+
+## Product Structure
+
+### `Default Home`
+
+`Electron` is the default home and exposes:
+
+- `Home`
+- `Runs`
+- `Work Items`
+- `Packs`
+- `Studio`
+
+`Home` replaces `Overview` and always combines:
+
+- `Cowork Launch`
+- `Governance Snapshot`
+
+### `Remote Front Door`
+
+`WeClaw` is the remote cowork companion:
+
+- launch work
+- ask for status
+- receive lightweight results
+- trigger the next step
+
+It does not own:
+
+- evidence review
+- repair workflows
+- long-running governance UI
+
+### `Professional Grounds`
+
+`Signals` and `due-diligence-core` are not generic plugins.
+They are flagship packs where Longclaw develops specialist depth:
+
+- `Signals`
+  - review
+  - backtest
+  - connector health
+  - output artifacts
+- `due-diligence-core`
+  - cloud execution runtime
+  - evidence
+  - manual review
+  - repair cases
+  - site health
+
+### `Reviewed Knowledge`
+
+`Obsidian` is the reviewed knowledge plane:
+
+- `reviewed insight`
+- stable knowledge cards
+- final decisions
+- operator playbooks
+
+It must not become a runtime queue, raw archive sink, or delivery fallback sink.
+
+## Architecture Model
 
 ```mermaid
 flowchart TB
+  subgraph FR["Front Doors"]
+    EH["Electron Home: Cowork Launch + Governance Snapshot"]
+    WC["WeClaw: remote cowork companion"]
+  end
+
   subgraph CR["Client Runtime（端侧）"]
     AO["longclaw-agent-os"]
-    GD["guardian substrate"]
-    UI["desktop / CLI / local runtime / device integration"]
-  end
-
-  subgraph IA["Interaction Adapter Layer（通道侧）"]
-    WC["weclaw"]
-    CH["Chanless"]
-    CA["future channel adapters"]
-  end
-
-  subgraph KP["Knowledge Review Plane（知识侧）"]
-    OB["Obsidian knowledge base"]
-    DB["dashboard / review / intervention"]
+    ST["Studio / Capability Substrate"]
+    GC["Runs / Work Items / Packs / Governance Console"]
   end
 
   subgraph AC["Agent Core（云侧）"]
-    AG["hermes-agent umbrella / future portable core"]
-    SS["session"]
-    MM["memory"]
-    SK["skills"]
-    SC["scheduler"]
+    AG["hermes-agent"]
+    LI["LaunchIntent compiler"]
+    RT["Task / Run / Work Item routing"]
+    MM["memory / delivery / approvals / eval"]
     HL["Harness Engineering Loop"]
   end
 
-  IA --> CR
-  CR --> KP
-  CR --> AC
-  KP --> AC
-  AC --> KP
+  subgraph PG["Professional Grounds"]
+    SG["Signals"]
+    DD["due-diligence-core"]
+  end
+
+  subgraph RK["Reviewed Knowledge Plane"]
+    OB["Obsidian"]
+  end
+
+  EH --> AO
+  WC --> LI
+  AO --> LI
+  ST --> AO
+  GC --> RT
+  LI --> RT
+  RT --> SG
+  RT --> DD
+  SG --> RT
+  DD --> RT
+  RT --> GC
+  MM --> OB
+  HL --> MM
 ```
 
-Why this is the current shape:
+## Ownership Boundaries
 
-- Longclaw still depends on device-local state: WeChat login, `launchd`, local toolchains, desktop notifications, and voice input.
-- `longclaw-agent-os` is still the fastest way to validate product workflows end to end.
-- `guardian` still matters because the current system is not yet a single unified runtime.
+### `hermes-agent`
 
-What it gets right:
+`hermes-agent` owns:
 
-- low migration risk
-- fast iteration for a single-user system
-- clear path for gradual extraction instead of a rewrite
+- canonical `LaunchIntent`
+- canonical `Task / Run / Work Item`
+- delivery policy
+- approvals and review gating
+- memory promotion
+- pack orchestration
+- harness and evaluation logic
 
-What it does not solve:
+### `longclaw-agent-os`
 
-- the core runtime is still spread across multiple repositories
-- `watchdog / harness / learning` boundaries are transitional
-- it is not the final distribution architecture
+`longclaw-agent-os` owns:
 
-## Architecture B
+- the default home
+- the governance console
+- the local capability substrate host
+- reliable local delivery surfaces
+- local install / guardian / recovery flows
 
-### `Distributed Product Architecture（未来产品化架构）`
+### `WeClaw`
 
-```mermaid
-flowchart TB
-  subgraph CR["Client Runtime（端侧）"]
-    APP["Mac / Mobile / Glass / Pad clients"]
-    UX["UI / notification / local cache / device capability"]
-  end
+`WeClaw` owns:
 
-  subgraph IA["Interaction Adapter Layer（通道侧）"]
-    WX["WeChat"]
-    TG["Telegram / Lark / Line / etc."]
-    VC["voice / multimodal adapters"]
-  end
+- WeChat semantics
+- message/media parsing
+- transcript-first voice normalization
+- remote launch and lightweight status transport
+- reviewed handoff compatibility contract for downstream products
 
-  subgraph AC["Agent Core（云侧）"]
-    AG["unified agent runtime"]
-    SS["session"]
-    MM["memory"]
-    SK["skills"]
-    SC["scheduler / automations"]
-    HL["Harness Engineering Loop / user model"]
-    DV["delivery"]
-  end
+### `Signals` And `due-diligence-core`
 
-  subgraph KP["Knowledge Review Plane（知识侧）"]
-    OB["Obsidian / Notion / review workspace"]
-    RV["human review / intervention / audit"]
-  end
-
-  CR --> AC
-  IA --> AC
-  AC --> KP
-  KP --> AC
-  AC --> CR
-  AC --> IA
-```
-
-Why this is closer to upstream Hermes Agent:
-
-- CLI, gateway, scheduling, memory, and session search can live in one runtime.
-- hosting and long-running process control are more naturally delegated to cloud infrastructure
-- the improvement loop becomes a built-in runtime property, not an attached subsystem
-
-Benefits:
-
-- cleaner packaging for product distribution
-- shared state across devices and channels
-- easier multi-user and multi-tenant expansion
-
-Costs:
-
-- stronger need for explicit boundaries around device-local capabilities
-- local recovery and desktop affordances must become thinner adapters
-- the migration from the current stack is material, not cosmetic
+The flagship packs own their own domain execution details.
+They do not own cross-pack session, delivery, or knowledge semantics.
 
 ## Harness Engineering Loop
 
-In this fork, `Harness Engineering` means the improvement loop should become part of the core runtime:
+In this fork, `Harness Engineering` means the improvement loop lives inside the core runtime:
 
-1. ingest real sessions, traces, and outcomes
-2. extract candidate memories, skills, and user-model updates
+1. ingest real sessions, launches, traces, and outcomes
+2. extract candidate memories, skills, presets, and user-model updates
 3. evaluate them against explicit harnesses and regression checks
 4. promote only validated artifacts into active runtime state
-5. surface conflicts, uncertainty, and risky actions to `Knowledge Review Plane（知识侧）`
+5. surface conflicts, uncertainty, and risky actions to the governance console
+6. promote reviewed outputs into the reviewed knowledge plane
 
-This is the bridge between the current `harness` sub-system and the future unified `Agent Core（云侧）`.
+## Delivery Policy
+
+The product loop should be modeled as `Push Optional, Pull Reliable`:
+
+1. `Electron Home` or `WeClaw` launch
+2. `LaunchIntent` compilation
+3. `Task / Run / Work Item` routing
+4. flagship pack execution
+5. governance state persistence
+6. reviewed handoff and promotion
+7. delivery policy
+
+Delivery policy has three modes:
+
+- `reply`
+  - Use live WeChat context to answer immediately.
+- `windowed_proactive`
+  - Allow proactive WeChat summaries only while a fresh context window is open.
+- `reliable_local`
+  - Always write governance state, notifications, and review artifacts even when proactive WeChat delivery is unavailable.
 
 ## Current Direction
 
-- keep `longclaw-agent-os` as the current `Client Runtime（端侧）` reference implementation
-- use this `hermes-agent` fork as the umbrella repo and architecture source of truth
-- move portable `watchdog / harness / learning` responsibilities into `Agent Core（云侧）`
-- keep `weclaw` and `Chanless` as adapters, not product-core repositories
+- keep `longclaw-agent-os` as the current `Client Runtime（端侧）` reference implementation and default home
+- keep `hermes-agent` as the architecture source of truth and cloud-side core
+- introduce `LaunchIntent` as the shared front-door contract
+- keep `weclaw` and `Chanless` as adapters, not product-core repos
+- treat `Signals` and `due-diligence-core` as flagship packs and `Professional Grounds`
+- keep `Obsidian` as reviewed knowledge only
 
 For the concrete repository mapping, see [REPO_MAP.md](REPO_MAP.md).

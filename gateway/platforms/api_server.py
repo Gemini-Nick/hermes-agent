@@ -308,6 +308,7 @@ class APIServerAdapter(BasePlatformAdapter):
         # Creation timestamps for orphaned-run TTL sweep
         self._run_streams_created: Dict[str, float] = {}
         self._session_db: Optional[Any] = None  # Lazy-init SessionDB for session continuity
+        self._agent_os_service: Optional[Any] = None
 
     @staticmethod
     def _parse_cors_origins(value: Any) -> tuple[str, ...]:
@@ -397,6 +398,14 @@ class APIServerAdapter(BasePlatformAdapter):
                 logger.debug("SessionDB unavailable for API server: %s", e)
         return self._session_db
 
+    def _ensure_agent_os_service(self):
+        """Lazily initialise the unified Agent OS control-plane service."""
+        if self._agent_os_service is None:
+            from agent_core import AgentOSService
+
+            self._agent_os_service = AgentOSService.from_env()
+        return self._agent_os_service
+
     # ------------------------------------------------------------------
     # Agent creation helper
     # ------------------------------------------------------------------
@@ -478,6 +487,411 @@ class APIServerAdapter(BasePlatformAdapter):
                 }
             ],
         })
+
+    async def _handle_agent_os_health(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().get_health()
+        except Exception as e:
+            logger.error("Agent OS health failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS health failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_packs(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_packs()
+        except Exception as e:
+            logger.error("Agent OS list packs failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS packs failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_adapters(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_adapters()
+        except Exception as e:
+            logger.error("Agent OS list adapters failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS adapters failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_runs(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_runs()
+        except Exception as e:
+            logger.error("Agent OS list runs failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS runs failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_run_artifacts(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        run_id = request.match_info.get("run_id", "").strip()
+        if not run_id:
+            return web.json_response(_openai_error("Missing run_id"), status=400)
+
+        pack_id = request.query.get("pack_id", "").strip() or None
+        domain = request.query.get("domain", "").strip() or None
+
+        try:
+            payload = await self._ensure_agent_os_service().list_artifacts(
+                run_id,
+                pack_id=pack_id,
+                domain=domain,
+            )
+        except KeyError as e:
+            return web.json_response(_openai_error(f"Unknown pack: {e}"), status=404)
+        except Exception as e:
+            logger.error("Agent OS run artifacts failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS run artifacts failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response(payload)
+
+    async def _handle_agent_os_manual_review_queue(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_manual_review_queue()
+        except Exception as e:
+            logger.error("Agent OS review queue failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS manual review queue failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_workers(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_workers()
+        except Exception as e:
+            logger.error("Agent OS workers failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS workers failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_site_health(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_site_health()
+        except Exception as e:
+            logger.error("Agent OS site health failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS site health failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_repair_cases(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_repair_cases()
+        except Exception as e:
+            logger.error("Agent OS repair cases failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS repair cases failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_overview(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().get_overview()
+        except Exception as e:
+            logger.error("Agent OS overview failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS overview failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_launch(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, Exception):
+            return web.json_response(_openai_error("Invalid JSON in request body"), status=400)
+
+        try:
+            payload = await self._ensure_agent_os_service().launch(body)
+        except KeyError as e:
+            return web.json_response(_openai_error(f"Unknown pack: {e}", code="unknown_pack"), status=404)
+        except ValueError as e:
+            return web.json_response(_openai_error(str(e)), status=400)
+        except RuntimeError as e:
+            return web.json_response(_openai_error(str(e), err_type="server_error"), status=503)
+        except Exception as e:
+            logger.error("Agent OS launch failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS launch failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload, status=202)
+
+    async def _handle_agent_os_tasks(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        limit_raw = request.query.get("limit", "").strip() or "50"
+        try:
+            limit = max(1, min(500, int(limit_raw)))
+        except ValueError:
+            return web.json_response(_openai_error("Invalid limit parameter"), status=400)
+
+        try:
+            payload = await self._ensure_agent_os_service().list_tasks(limit=limit)
+        except Exception as e:
+            logger.error("Agent OS list tasks failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS tasks failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_task(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        task_id = request.match_info.get("task_id", "").strip()
+        if not task_id:
+            return web.json_response(_openai_error("Missing task_id"), status=400)
+
+        try:
+            payload = await self._ensure_agent_os_service().get_task(task_id)
+        except KeyError:
+            return web.json_response(_openai_error(f"Unknown task: {task_id}", code="unknown_task"), status=404)
+        except Exception as e:
+            logger.error("Agent OS task failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS task failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_work_items(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_work_items()
+        except Exception as e:
+            logger.error("Agent OS work items failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS work items failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_adapter_health(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            payload = await self._ensure_agent_os_service().list_adapter_health()
+        except Exception as e:
+            logger.error("Agent OS adapter health failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS adapter health failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_pack_dashboard(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        pack_id = request.match_info.get("pack_id", "").strip()
+        if not pack_id:
+            return web.json_response(_openai_error("Missing pack_id"), status=400)
+
+        try:
+            payload = await self._ensure_agent_os_service().get_pack_dashboard(pack_id)
+        except KeyError:
+            return web.json_response(_openai_error(f"Unknown pack: {pack_id}", code="unknown_pack"), status=404)
+        except Exception as e:
+            logger.error("Agent OS pack dashboard failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS pack dashboard failed: {e}", err_type="server_error"), status=500)
+        return web.json_response(payload)
+
+    async def _handle_agent_os_action(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        action_id = request.match_info.get("action_id", "").strip()
+        if not action_id:
+            return web.json_response(_openai_error("Missing action_id"), status=400)
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, Exception):
+            body = {}
+
+        try:
+            payload = await self._ensure_agent_os_service().execute_action(action_id, body)
+        except KeyError:
+            return web.json_response(_openai_error(f"Unknown action: {action_id}", code="unknown_action"), status=404)
+        except ValueError as e:
+            return web.json_response(_openai_error(str(e)), status=400)
+        except RuntimeError as e:
+            return web.json_response(_openai_error(str(e), err_type="server_error"), status=503)
+        except Exception as e:
+            logger.error("Agent OS action failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS action failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response(payload)
+
+    async def _handle_agent_os_list_memory_records(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        plane = request.query.get("plane", "").strip() or None
+        limit_raw = request.query.get("limit", "").strip() or "50"
+        try:
+            limit = max(1, min(500, int(limit_raw)))
+        except ValueError:
+            return web.json_response(_openai_error("Invalid limit parameter"), status=400)
+
+        try:
+            from agent_core.contracts import MemoryPlane
+
+            plane_value = MemoryPlane(plane) if plane else None
+            records = await self._ensure_agent_os_service().list_memory_records(limit=limit, plane=plane_value)
+        except ValueError:
+            return web.json_response(_openai_error("Invalid plane parameter"), status=400)
+        except Exception as e:
+            logger.error("Agent OS list memory records failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS memory list failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response([record.model_dump(mode="json") for record in records])
+
+    async def _handle_agent_os_create_memory_record(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, Exception):
+            return web.json_response(_openai_error("Invalid JSON in request body"), status=400)
+
+        content = body.get("content")
+        source = body.get("source")
+        if not content or not source:
+            return web.json_response(_openai_error("'source' and 'content' are required"), status=400)
+
+        try:
+            from agent_core.contracts import MemoryPlane
+
+            plane = MemoryPlane(body.get("plane", "raw"))
+            record = await self._ensure_agent_os_service().record_memory(
+                source=str(source),
+                content=str(content),
+                plane=plane,
+                session_id=body.get("session_id"),
+                run_id=body.get("run_id"),
+                metadata=body.get("metadata") or {},
+            )
+        except ValueError:
+            return web.json_response(_openai_error("Invalid memory plane"), status=400)
+        except Exception as e:
+            logger.error("Agent OS create memory record failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS memory create failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response(record.model_dump(mode="json"), status=201)
+
+    async def _handle_agent_os_run_pack(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        pack_id = request.match_info.get("pack_id", "").strip()
+        if not pack_id:
+            return web.json_response(_openai_error("Missing pack_id"), status=400)
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, Exception):
+            return web.json_response(_openai_error("Invalid JSON in request body"), status=400)
+
+        try:
+            service = self._ensure_agent_os_service()
+            if not service.domain_packs.has(pack_id):
+                return web.json_response(_openai_error(f"Unknown pack: {pack_id}", code="unknown_pack"), status=404)
+            payload = await service.run_pack(pack_id, body)
+        except ValueError as e:
+            return web.json_response(_openai_error(str(e)), status=400)
+        except KeyError as e:
+            return web.json_response(_openai_error(f"Invalid run payload: {e}"), status=400)
+        except RuntimeError as e:
+            return web.json_response(_openai_error(str(e), err_type="server_error"), status=503)
+        except Exception as e:
+            logger.error("Agent OS run pack failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS pack run failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response(payload, status=202)
+
+    async def _handle_agent_os_ingest_adapter_event(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        adapter_id = request.match_info.get("adapter_id", "").strip()
+        if not adapter_id:
+            return web.json_response(_openai_error("Missing adapter_id"), status=400)
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, Exception):
+            return web.json_response(_openai_error("Invalid JSON in request body"), status=400)
+
+        try:
+            service = self._ensure_agent_os_service()
+            if not service.adapters.has(adapter_id):
+                return web.json_response(_openai_error(f"Unknown adapter: {adapter_id}", code="unknown_adapter"), status=404)
+            payload = await service.ingest_event(adapter_id, body)
+        except ValueError as e:
+            return web.json_response(_openai_error(str(e)), status=400)
+        except Exception as e:
+            logger.error("Agent OS ingest adapter event failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS adapter ingest failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response(payload, status=202)
+
+    async def _handle_agent_os_deliver_via_adapter(self, request: "web.Request") -> "web.Response":
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+
+        adapter_id = request.match_info.get("adapter_id", "").strip()
+        if not adapter_id:
+            return web.json_response(_openai_error("Missing adapter_id"), status=400)
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, Exception):
+            return web.json_response(_openai_error("Invalid JSON in request body"), status=400)
+
+        run_payload = body.get("run")
+        if not isinstance(run_payload, dict):
+            return web.json_response(_openai_error("'run' object is required"), status=400)
+
+        try:
+            service = self._ensure_agent_os_service()
+            if not service.adapters.has(adapter_id):
+                return web.json_response(_openai_error(f"Unknown adapter: {adapter_id}", code="unknown_adapter"), status=404)
+            payload = await service.deliver_run_via_adapter(
+                adapter_id,
+                run_payload,
+                body.get("policy") or {},
+            )
+        except ValueError as e:
+            return web.json_response(_openai_error(str(e)), status=400)
+        except Exception as e:
+            logger.error("Agent OS deliver via adapter failed: %s", e, exc_info=True)
+            return web.json_response(_openai_error(f"Agent OS adapter deliver failed: {e}", err_type="server_error"), status=500)
+
+        return web.json_response(payload, status=202)
 
     async def _handle_chat_completions(self, request: "web.Request") -> "web.Response":
         """POST /v1/chat/completions — OpenAI Chat Completions format."""
@@ -1610,6 +2024,28 @@ class APIServerAdapter(BasePlatformAdapter):
             self._app.router.add_get("/health", self._handle_health)
             self._app.router.add_get("/v1/health", self._handle_health)
             self._app.router.add_get("/v1/models", self._handle_models)
+            self._app.router.add_get("/agent-os/health", self._handle_agent_os_health)
+            self._app.router.add_get("/agent-os/packs", self._handle_agent_os_packs)
+            self._app.router.add_get("/agent-os/adapters", self._handle_agent_os_adapters)
+            self._app.router.add_get("/agent-os/runs", self._handle_agent_os_runs)
+            self._app.router.add_get("/agent-os/runs/{run_id}/artifacts", self._handle_agent_os_run_artifacts)
+            self._app.router.add_get("/agent-os/manual-review-queue", self._handle_agent_os_manual_review_queue)
+            self._app.router.add_get("/agent-os/workers", self._handle_agent_os_workers)
+            self._app.router.add_get("/agent-os/site-health", self._handle_agent_os_site_health)
+            self._app.router.add_get("/agent-os/repair-cases", self._handle_agent_os_repair_cases)
+            self._app.router.add_get("/agent-os/overview", self._handle_agent_os_overview)
+            self._app.router.add_post("/agent-os/launches", self._handle_agent_os_launch)
+            self._app.router.add_get("/agent-os/tasks", self._handle_agent_os_tasks)
+            self._app.router.add_get("/agent-os/tasks/{task_id}", self._handle_agent_os_task)
+            self._app.router.add_get("/agent-os/work-items", self._handle_agent_os_work_items)
+            self._app.router.add_get("/agent-os/adapters/health", self._handle_agent_os_adapter_health)
+            self._app.router.add_get("/agent-os/packs/{pack_id}/dashboard", self._handle_agent_os_pack_dashboard)
+            self._app.router.add_post("/agent-os/actions/{action_id}", self._handle_agent_os_action)
+            self._app.router.add_post("/agent-os/adapters/{adapter_id}/ingest", self._handle_agent_os_ingest_adapter_event)
+            self._app.router.add_post("/agent-os/adapters/{adapter_id}/deliver", self._handle_agent_os_deliver_via_adapter)
+            self._app.router.add_get("/agent-os/memory/records", self._handle_agent_os_list_memory_records)
+            self._app.router.add_post("/agent-os/memory/records", self._handle_agent_os_create_memory_record)
+            self._app.router.add_post("/agent-os/packs/{pack_id}/runs", self._handle_agent_os_run_pack)
             self._app.router.add_post("/v1/chat/completions", self._handle_chat_completions)
             self._app.router.add_post("/v1/responses", self._handle_responses)
             self._app.router.add_get("/v1/responses/{response_id}", self._handle_get_response)
