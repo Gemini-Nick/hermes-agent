@@ -312,6 +312,20 @@ def test_agent_os_service_compiles_launch_mentions_into_pack_task_and_presets(tm
     assert compiled["request"].input["query"] == "scan this company"
 
 
+def test_launch_intent_defaults_cloud_sandbox_to_cloud_managed_runtime() -> None:
+    intent = LaunchIntent.model_validate(
+        {
+            "source": "electron_cowork",
+            "raw_text": "run this in the cloud",
+            "work_mode": "cloud_sandbox",
+        }
+    )
+
+    assert intent.runtime_profile.value == "cloud_managed_runtime"
+    assert intent.runtime_target.value == "cloud_runtime"
+    assert intent.local_runtime_seat.value == "unavailable"
+
+
 def test_agent_os_service_launch_creates_task_and_links_generated_run(tmp_path) -> None:
     service = AgentOSService(
         domain_packs=DomainPackRegistry(),
@@ -404,6 +418,60 @@ def test_agent_os_service_launches_local_runtime_without_pack_into_internal_ledg
     assert receipt["run"]["domain"] == "local_runtime"
     assert receipt["run"]["local_runtime_seat"] == "local_runtime_api"
     assert any(run["domain"] == "local_runtime" for run in runs)
+
+
+def test_agent_os_service_launches_cloud_runtime_without_pack_into_internal_ledger(tmp_path) -> None:
+    service = AgentOSService(
+        domain_packs=DomainPackRegistry(),
+        adapters=AdapterRegistry(),
+        state_root=tmp_path,
+        cloud_runtime_base_url="http://cloud-runtime.local",
+    )
+
+    async def fake_post_cloud_runtime_launch(payload):
+        assert payload["egress_profile"] == "vps_direct"
+        assert payload["client_scope_id"].startswith("client-")
+        return {
+            "accepted": True,
+            "status": "running",
+            "remote_session_id": "remote-123",
+            "workspace_root": "/srv/cloud/client-a",
+            "summary": "Cloud runtime accepted",
+        }
+
+    service._post_cloud_runtime_launch = fake_post_cloud_runtime_launch  # type: ignore[method-assign]
+
+    receipt = asyncio.run(
+        service.launch(
+            {
+                "source": "electron_cowork",
+                "raw_text": "在云端执行这项任务",
+                "work_mode": "cloud_sandbox",
+                "launch_surface": "home",
+                "workspace_target": "sandbox://client-a",
+                "session_context": {
+                    "session_id": "session:desktop-zhangqilong",
+                    "channel": "desktop",
+                    "user_id": "zhangqilong",
+                },
+            }
+        )
+    )
+    runs = asyncio.run(service.list_runs())
+
+    assert receipt["pack_id"] == "cloud_runtime"
+    assert receipt["task"]["capability"] == "cloud_runtime.cloud_sandbox"
+    assert receipt["task"]["runtime_profile"] == "cloud_managed_runtime"
+    assert receipt["task"]["runtime_target"] == "cloud_runtime"
+    assert receipt["task"]["execution_plane"] == "cloud_executor"
+    assert receipt["task"]["local_runtime_seat"] == "unavailable"
+    assert receipt["run"]["domain"] == "cloud_runtime"
+    assert receipt["run"]["runtime_profile"] == "cloud_managed_runtime"
+    assert receipt["run"]["runtime_target"] == "cloud_runtime"
+    assert receipt["run"]["local_runtime_seat"] == "unavailable"
+    assert receipt["run"]["metadata"]["remote_session_id"] == "remote-123"
+    assert receipt["run"]["metadata"]["egress_profile"] == "vps_direct"
+    assert any(run["domain"] == "cloud_runtime" for run in runs)
 
 
 def test_agent_os_service_from_env_registers_weclaw_adapter_from_api_addr(monkeypatch, tmp_path) -> None:

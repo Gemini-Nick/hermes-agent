@@ -104,6 +104,12 @@ def default_runtime_profile() -> RuntimeProfile:
         return RuntimeProfile.DEV_LOCAL_ACP_BRIDGE
 
 
+def default_runtime_profile_for_work_mode(work_mode: WorkMode) -> RuntimeProfile:
+    if work_mode == WorkMode.CLOUD_SANDBOX:
+        return RuntimeProfile.CLOUD_MANAGED_RUNTIME
+    return default_runtime_profile()
+
+
 def runtime_target_for_work_mode(work_mode: WorkMode) -> RuntimeTarget:
     if work_mode == WorkMode.CLOUD_SANDBOX:
         return RuntimeTarget.CLOUD_RUNTIME
@@ -296,6 +302,10 @@ class Task(BaseModel):
             data.get("runtime_target") or metadata.get("runtime_target") or data.get("execution_plane") or metadata.get("execution_plane"),
             default=runtime_target_for_work_mode(work_mode),
         )
+        runtime_profile = _coerce_runtime_profile_value(
+            data.get("runtime_profile") or metadata.get("runtime_profile"),
+            default=default_runtime_profile_for_work_mode(work_mode),
+        )
         interaction_surface = _coerce_interaction_surface_value(
             data.get("interaction_surface")
             or metadata.get("interaction_surface")
@@ -303,9 +313,6 @@ class Task(BaseModel):
             or metadata.get("origin_surface")
             or metadata.get("launch_surface"),
             default=interaction_surface_for_work_mode(work_mode),
-        )
-        runtime_profile = _coerce_runtime_profile_value(
-            data.get("runtime_profile") or metadata.get("runtime_profile")
         )
         model_plane = _coerce_model_plane_value(
             data.get("model_plane") or metadata.get("model_plane")
@@ -371,6 +378,10 @@ class Run(BaseModel):
             data.get("runtime_target") or metadata.get("runtime_target") or data.get("execution_plane") or metadata.get("execution_plane"),
             default=runtime_target_for_work_mode(work_mode),
         )
+        runtime_profile = _coerce_runtime_profile_value(
+            data.get("runtime_profile") or metadata.get("runtime_profile"),
+            default=default_runtime_profile_for_work_mode(work_mode),
+        )
         interaction_surface = _coerce_interaction_surface_value(
             data.get("interaction_surface")
             or metadata.get("interaction_surface")
@@ -378,9 +389,6 @@ class Run(BaseModel):
             or metadata.get("origin_surface")
             or metadata.get("launch_surface"),
             default=interaction_surface_for_work_mode(work_mode),
-        )
-        runtime_profile = _coerce_runtime_profile_value(
-            data.get("runtime_profile") or metadata.get("runtime_profile")
         )
         model_plane = _coerce_model_plane_value(
             data.get("model_plane") or metadata.get("model_plane")
@@ -604,16 +612,17 @@ class LaunchIntent(BaseModel):
             or data.get("source"),
             default=interaction_surface_for_work_mode(work_mode),
         )
-        runtime_profile = _coerce_runtime_profile_value(
-            data.get("runtime_profile")
-            or metadata.get("runtime_profile")
-            or session_context.get("runtime_profile")
-        )
         runtime_target = _coerce_runtime_target_value(
             data.get("runtime_target")
             or metadata.get("runtime_target")
             or metadata.get("execution_plane"),
             default=runtime_target_for_work_mode(work_mode),
+        )
+        runtime_profile = _coerce_runtime_profile_value(
+            data.get("runtime_profile")
+            or metadata.get("runtime_profile")
+            or session_context.get("runtime_profile"),
+            default=default_runtime_profile_for_work_mode(work_mode),
         )
         model_plane = _coerce_model_plane_value(
             data.get("model_plane") or metadata.get("model_plane") or session_context.get("model_plane")

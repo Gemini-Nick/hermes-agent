@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 import inspect
 import json
 import os
@@ -49,6 +50,8 @@ class AgentOSService:
         state_root: Optional[str | Path] = None,
         mempalace_target: str = "mempalace://raw",
         obsidian_target: str = "obsidian://reviewed",
+        cloud_runtime_base_url: Optional[str] = None,
+        cloud_runtime_api_key: Optional[str] = None,
     ) -> None:
         self.domain_packs = domain_packs or DomainPackRegistry()
         self.adapters = adapters or AdapterRegistry()
@@ -64,8 +67,15 @@ class AgentOSService:
         self._adapter_event_log_path = self.state_root / "adapter-events.jsonl"
         self._tasks_log_path = self.state_root / "tasks.jsonl"
         self._local_runtime_runs_path = self.state_root / "local-runtime-runs.jsonl"
+        self._cloud_runtime_runs_path = self.state_root / "cloud-runtime-runs.jsonl"
         self.mempalace_target = mempalace_target
         self.obsidian_target = obsidian_target
+        self.cloud_runtime_base_url = (
+            self._normalize_http_base_url(cloud_runtime_base_url)
+            if cloud_runtime_base_url
+            else None
+        )
+        self.cloud_runtime_api_key = cloud_runtime_api_key
 
     @classmethod
     def from_env(cls) -> "AgentOSService":
@@ -79,6 +89,8 @@ class AgentOSService:
         service = cls(
             mempalace_target=os.environ.get("LONGCLAW_MEMPALACE_TARGET", "mempalace://raw"),
             obsidian_target=os.environ.get("LONGCLAW_OBSIDIAN_TARGET", "obsidian://reviewed"),
+            cloud_runtime_base_url=os.environ.get("LONGCLAW_CLOUD_RUNTIME_BASE_URL"),
+            cloud_runtime_api_key=os.environ.get("LONGCLAW_CLOUD_RUNTIME_API_KEY"),
         )
 
         due_diligence_url = os.environ.get("LONGCLAW_DUE_DILIGENCE_API_URL")
@@ -424,15 +436,21 @@ class AgentOSService:
         compiled = await self.compile_launch_intent(intent)
         launch = compiled["launch"]
         raw_pack_id = compiled["pack_id"]
-        pack_id = str(raw_pack_id or "local_runtime")
         task = Task.model_validate(compiled["task"])
         request = DomainRunRequest.model_validate(compiled["request"])
+        pack_id = str(
+            raw_pack_id
+            or ("cloud_runtime" if task.runtime_target == RuntimeTarget.CLOUD_RUNTIME else "local_runtime")
+        )
         local_runtime_seat = compiled.get("local_runtime_seat")
 
         await self._store_task(task)
         try:
             if not raw_pack_id:
-                result = await self._launch_local_runtime(task, request)
+                if task.runtime_target == RuntimeTarget.CLOUD_RUNTIME:
+                    result = await self._launch_cloud_runtime(task, request)
+                else:
+                    result = await self._launch_local_runtime(task, request)
             else:
                 result = await self.run_pack(pack_id, request.model_dump(mode="json"))
         except Exception:
@@ -642,6 +660,70 @@ class AgentOSService:
                         "local_runtime_seat": local_runtime_seat,
                         "execution_plane": execution_plane,
                         "pack_id": "local_runtime",
+                    }
+                )
+            )
+        for run in self._read_cloud_runtime_runs():
+            metadata = dict(run.metadata)
+            context = task_context.get(run.run_id, {})
+            work_mode = self._coerce_work_mode(
+                context.get("work_mode") or metadata.get("work_mode"),
+                default=run.work_mode,
+            )
+            runtime_profile = self._coerce_runtime_profile(
+                context.get("runtime_profile") or metadata.get("runtime_profile"),
+                default=run.runtime_profile,
+            )
+            runtime_target = self._coerce_runtime_target(
+                context.get("runtime_target")
+                or metadata.get("runtime_target")
+                or context.get("execution_plane")
+                or metadata.get("execution_plane"),
+                default=run.runtime_target,
+            )
+            interaction_surface = self._coerce_interaction_surface(
+                context.get("interaction_surface")
+                or metadata.get("interaction_surface")
+                or context.get("origin_surface")
+                or metadata.get("origin_surface")
+                or metadata.get("launch_surface"),
+                default=run.interaction_surface,
+            )
+            model_plane = self._coerce_model_plane(
+                context.get("model_plane") or metadata.get("model_plane"),
+                default=run.model_plane,
+            )
+            local_runtime_seat = self._coerce_local_runtime_seat(
+                context.get("local_runtime_seat") or metadata.get("local_runtime_seat"),
+                default=run.local_runtime_seat,
+            )
+            execution_plane = self._coerce_execution_plane(
+                context.get("execution_plane") or metadata.get("execution_plane"),
+                default=run.execution_plane,
+            )
+            origin_surface = (
+                context.get("origin_surface")
+                or metadata.get("origin_surface")
+                or metadata.get("launch_surface")
+                or interaction_surface.value
+            )
+            runs.append(
+                run.model_copy(
+                    update={
+                        "metadata": {
+                            **metadata,
+                            "pack_id": "cloud_runtime",
+                        },
+                        "task_id": run.task_id or context.get("task_id"),
+                        "work_mode": work_mode,
+                        "origin_surface": str(origin_surface) if origin_surface else None,
+                        "interaction_surface": interaction_surface,
+                        "runtime_profile": runtime_profile,
+                        "runtime_target": runtime_target,
+                        "model_plane": model_plane,
+                        "local_runtime_seat": local_runtime_seat,
+                        "execution_plane": execution_plane,
+                        "pack_id": "cloud_runtime",
                     }
                 )
             )
@@ -1078,9 +1160,12 @@ class AgentOSService:
             descriptors = self.domain_packs.list_descriptors()
             if len(descriptors) == 1:
                 pack_id = descriptors[0].pack_id
-            elif self._resolve_work_mode(launch) in {WorkMode.LOCAL, WorkMode.WECLAW_DISPATCH}:
-                return "", self._local_runtime_capability_for_launch(launch)
             else:
+                work_mode = self._resolve_work_mode(launch)
+                if work_mode in {WorkMode.LOCAL, WorkMode.WECLAW_DISPATCH}:
+                    return "", self._local_runtime_capability_for_launch(launch)
+                if work_mode == WorkMode.CLOUD_SANDBOX:
+                    return "", self._cloud_runtime_capability_for_launch(launch)
                 raise ValueError("LaunchIntent requires an @pack mention or metadata.pack_id")
 
         if not self.domain_packs.has(pack_id):
@@ -1106,6 +1191,12 @@ class AgentOSService:
             if self._resolve_work_mode(launch) == WorkMode.WECLAW_DISPATCH
             else "local_runtime.local_work"
         )
+
+    def _cloud_runtime_capability_for_launch(self, launch: LaunchIntent) -> str:
+        metadata_hint = str(launch.metadata.get("cloud_capability") or "").strip()
+        if metadata_hint:
+            return metadata_hint
+        return "cloud_runtime.cloud_sandbox"
 
     def _resolve_work_mode(self, launch: LaunchIntent) -> WorkMode:
         metadata_mode = (
@@ -1153,10 +1244,20 @@ class AgentOSService:
         )
 
     def _resolve_runtime_profile(self, launch: LaunchIntent) -> RuntimeProfile:
-        return self._coerce_runtime_profile(
+        explicit = (
             launch.runtime_profile
             or launch.metadata.get("runtime_profile")
-            or launch.session_context.get("runtime_profile"),
+            or launch.session_context.get("runtime_profile")
+        )
+        if explicit:
+            return self._coerce_runtime_profile(
+                explicit,
+                default=default_runtime_profile(),
+            )
+        if self._resolve_work_mode(launch) == WorkMode.CLOUD_SANDBOX:
+            return RuntimeProfile.CLOUD_MANAGED_RUNTIME
+        return self._coerce_runtime_profile(
+            explicit,
             default=default_runtime_profile(),
         )
 
@@ -1475,6 +1576,140 @@ class AgentOSService:
             "review_actions": [],
         }
 
+    async def _launch_cloud_runtime(
+        self,
+        task: Task,
+        request: DomainRunRequest,
+    ) -> Dict[str, Any]:
+        if not self.cloud_runtime_base_url:
+            raise RuntimeError("Cloud runtime gateway is not configured")
+
+        now = datetime.now(timezone.utc)
+        egress_profile = str(task.metadata.get("egress_profile") or request.metadata.get("egress_profile") or "vps_direct")
+        proxy_profile = (
+            str(task.metadata.get("proxy_profile") or request.metadata.get("proxy_profile") or "").strip()
+            or None
+        )
+        client_scope_id = self._cloud_runtime_client_scope_id(task, request)
+        payload = {
+            "launch_id": request.metadata.get("launch_id") or task.metadata.get("launch_id"),
+            "task_id": task.task_id,
+            "capability": request.capability,
+            "requested_outcome": (
+                task.input.get("requested_outcome")
+                or task.input.get("query")
+                or task.input.get("raw_text")
+                or ""
+            ),
+            "raw_text": task.input.get("raw_text") or task.metadata.get("raw_text") or "",
+            "workspace_target": task.metadata.get("workspace_target"),
+            "client_scope_id": client_scope_id,
+            "egress_profile": egress_profile,
+            "proxy_profile": proxy_profile,
+            "metadata": {
+                **dict(request.metadata),
+                **dict(task.metadata),
+                "runtime_profile": task.runtime_profile.value,
+                "runtime_target": task.runtime_target.value,
+                "interaction_surface": task.interaction_surface.value,
+                "execution_plane": task.execution_plane.value,
+                "model_plane": task.model_plane.value,
+            },
+        }
+        gateway_result = await self._post_cloud_runtime_launch(payload)
+        run_status = self._cloud_runtime_run_status(gateway_result)
+        remote_session_id = str(gateway_result.get("remote_session_id") or "") or None
+        workspace_root = str(gateway_result.get("workspace_root") or "") or None
+        run = Run(
+            run_id=str(gateway_result.get("run_id") or f"run-{uuid.uuid4().hex[:12]}"),
+            domain="cloud_runtime",
+            capability=request.capability,
+            status=run_status,
+            session_id=task.session_id,
+            task_id=task.task_id,
+            requested_by=request.requested_by,
+            work_mode=task.work_mode,
+            origin_surface=task.origin_surface,
+            interaction_surface=task.interaction_surface,
+            runtime_profile=task.runtime_profile,
+            runtime_target=task.runtime_target,
+            model_plane=task.model_plane,
+            local_runtime_seat=task.local_runtime_seat,
+            execution_plane=task.execution_plane,
+            summary=str(
+                gateway_result.get("summary")
+                or task.input.get("requested_outcome")
+                or task.input.get("query")
+                or task.input.get("raw_text")
+                or "Queued for cloud runtime execution"
+            ),
+            created_at=now,
+            started_at=now,
+            metadata={
+                **dict(task.metadata),
+                "pack_id": "cloud_runtime",
+                "internal_runtime": True,
+                "client_scope_id": client_scope_id,
+                "remote_session_id": remote_session_id,
+                "workspace_root": workspace_root,
+                "egress_profile": egress_profile,
+                "proxy_profile": proxy_profile,
+                "gateway_response": gateway_result,
+            },
+        )
+        await self._store_cloud_runtime_run(run)
+        return {
+            "run": run.model_dump(mode="json"),
+            "artifacts": [],
+            "review_actions": [],
+        }
+
+    def _cloud_runtime_client_scope_id(
+        self,
+        task: Task,
+        request: DomainRunRequest,
+    ) -> str:
+        for candidate in (
+            task.metadata.get("client_scope_id"),
+            request.metadata.get("client_scope_id"),
+            task.session_id,
+            task.metadata.get("workspace_target"),
+            request.requested_by,
+        ):
+            value = str(candidate or "").strip()
+            if value:
+                return f"client-{uuid.uuid5(uuid.NAMESPACE_URL, value).hex[:12]}"
+        return f"client-{uuid.uuid4().hex[:12]}"
+
+    def _cloud_runtime_run_status(self, result: Mapping[str, Any]) -> RunStatus:
+        raw_status = str(result.get("status") or "").strip().lower()
+        if raw_status == "needs_review":
+            return RunStatus.WAITING_APPROVAL
+        try:
+            if raw_status:
+                return RunStatus(raw_status)
+        except ValueError:
+            pass
+        if result.get("accepted") is False:
+            return RunStatus.FAILED
+        return RunStatus.RUNNING
+
+    async def _post_cloud_runtime_launch(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        headers = {"Content-Type": "application/json"}
+        if self.cloud_runtime_api_key:
+            headers["Authorization"] = f"Bearer {self.cloud_runtime_api_key}"
+
+        # Cloud runtime requests are task-scoped and must not inherit host proxy state.
+        async with httpx.AsyncClient(timeout=20.0, trust_env=False) as client:
+            response = await client.post(
+                f"{self.cloud_runtime_base_url}/launches",
+                json=dict(payload),
+                headers=headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+        return data if isinstance(data, Mapping) else {"accepted": True}
+
     def _task_status_from_run(self, status: RunStatus | str) -> TaskStatus:
         value = status.value if isinstance(status, RunStatus) else str(status)
         mapping = {
@@ -1573,6 +1808,10 @@ class AgentOSService:
         with self._local_runtime_runs_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(run.model_dump(mode="json"), ensure_ascii=False) + "\n")
 
+    async def _store_cloud_runtime_run(self, run: Run) -> None:
+        with self._cloud_runtime_runs_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(run.model_dump(mode="json"), ensure_ascii=False) + "\n")
+
     def _read_tasks(self) -> Dict[str, Task]:
         if not self._tasks_log_path.exists():
             return {}
@@ -1589,6 +1828,17 @@ class AgentOSService:
             return []
         runs: Dict[str, Run] = {}
         for line in self._local_runtime_runs_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            run = Run.model_validate(json.loads(line))
+            runs[run.run_id] = run
+        return sorted(runs.values(), key=lambda item: item.created_at, reverse=True)
+
+    def _read_cloud_runtime_runs(self) -> List[Run]:
+        if not self._cloud_runtime_runs_path.exists():
+            return []
+        runs: Dict[str, Run] = {}
+        for line in self._cloud_runtime_runs_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             run = Run.model_validate(json.loads(line))
